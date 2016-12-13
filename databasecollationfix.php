@@ -32,8 +32,11 @@ class DS_DatabaseCollationFix
 		add_action('init', array($this, 'init'));
 
 		// use override from wp-config.php if provided
-//		if (defined('DB_COLLATE'))
-//			$this->_collation = DB_COLLATE;
+		if (defined('DB_COLLATE')) {
+			$collation = DB_COLLATE;
+			if (!empty($collation) && 'utf8mb4_unicode_520_ci' !== DB_COLLATE)
+				$this->_collation = DB_COLLATE;
+		}
 //$this->_collation = 'utf8_general_ci';			// force collation to this instead
 	}
 
