@@ -15,6 +15,9 @@ License URI: http://www.gnu.org/licenses/gpl-2.0.html
 == Screenshots ==
 
 == Changelog ==
+= 1.2 - Feb 24, 2017 =
+* look for both 'utf8mb4_unicode_520_ci' and 'utf8_unicode_520_ci' algorithms and update either to the collation set $_collation property
+
 = 1.1 - Dec 13, 2016 =
 * check for non-empty DB_COLLATION specification
 

@@ -2,8 +2,8 @@
 /**
 Plugin Name: Database Collation Fix
 Plugin URL: https://serverpress.com/plugins/databasecollationfix
-Description: Convert tables using utf8mb4_unicode_520_ci collation to standard collation on a cron interval, plus on DesktopServer Create, Copy, Move, Import and Export operations.
-Version: 1.1.0
+Description: Convert tables using utf8mb4_unicode_520_ci or utf8_unicode_520_ci collation to standard collation on a cron interval, plus on DesktopServer Create, Copy, Move, Import and Export operations.
+Version: 1.2
 Author: Dave Jesch
 Author URI: http://serverpress.com
 Text Domain: dbcollationfix
@@ -19,8 +19,14 @@ class DS_DatabaseCollationFix
 
 	/* Collation Algorithm to change database to: */
 	private $_collation = 'utf8mb4_unicode_ci';
+	/* List of Collation Algorithms to look for and change */
+	private $_change_collation = array(
+		'utf8mb4_unicode_520_ci',
+		'utf8_unicode_520_ci',
+	);
 
 	private $_report = FALSE;
+	private $_output = FALSE;
 
 	/**
 	 * Constructor
@@ -31,10 +37,10 @@ class DS_DatabaseCollationFix
 			define('DAY_IN_SECONDS', 60 * 60 * 24);
 		add_action('init', array($this, 'init'));
 
-		// use override from wp-config.php if provided
+		// use override from wp-config.php if provided -- and not an undesired algorithm
 		if (defined('DB_COLLATE')) {
 			$collation = DB_COLLATE;
-			if (!empty($collation) && 'utf8mb4_unicode_520_ci' !== DB_COLLATE)
+			if (!empty($collation) && !in_array(DB_COLLATE, $this->_change_collation))
 				$this->_collation = DB_COLLATE;
 		}
 //$this->_collation = 'utf8_general_ci';			// force collation to this instead
@@ -128,33 +134,43 @@ $this->_log(__METHOD__.'() checking table ' . $table);
 $this->_log(__METHOD__.'() res=' . var_export($create_table_res, TRUE));
 				$create_table = $create_table_res['Create Table'];
 
-				// check table collation and modify if it's utf8mb4_unicode_520_ci
-				if (FALSE !== stripos($create_table, $collation_term)) {
-					$this->_report(sprintf(__('- found "%1$s" and ALTERing to "%2$s"...', 'dbcollationfix'),
-						$collation_term, $this->_collation));
-					++$table_count;
+				// check table collation and modify if it's an undesired algorithm
+				$mod = FALSE;
+				foreach ($this->_change_collation as $coll) {
+					$collation_term =" COLLATE={$coll}";
+$this->_log(__METHOD__.'() checking collation: ' . $collation_term);
+					if (FALSE !== stripos($create_table, $collation_term)) {
+						$this->_report(sprintf(__('- found "%1$s" and ALTERing to "%2$s"...', 'dbcollationfix'),
+							$collation_term, $this->_collation));
+						++$table_count;
 
-					$sql = "ALTER TABLE `{$table}` COLLATE={$this->_collation}";
+						$sql = "ALTER TABLE `{$table}` COLLATE={$this->_collation}";
 $this->_report($sql, TRUE);
-					$alter = $wpdb->query($sql);
+						$alter = $wpdb->query($sql);
 $this->_log(__METHOD__.'() sql=' . $sql . ' res=' . var_export($alter, TRUE));
-				} else {
+						$mod = TRUE;
+						break;
+					}
+				}
+				if (!$mod) {
 					$this->_report(__('- no ALTERations required.', 'dbcollationfix'));
 				}
 
-				// check collumn collation and modify if it's utf8mb4_unicode_520_ci
+				// check collumn collation and modify if it's an undesired algorithm
 				$sql = "SHOW FULL COLUMNS FROM `{$table}`";
 				$columns_res = $wpdb->get_results($sql, ARRAY_A);
 				if (NULL !== $columns_res) {
 					foreach ($columns_res as $row) {
-						// if the column is using the utf8mb4_unicode_520_ci Collation Algorithm
-						if ('utf8mb4_unicode_520_ci' === $row['Collation']) {
+						// if the column is using an undesired Collation Algorithm
+$this->_log(__METHOD__.'() checking collation of `' . $row['Collation'] . '`: (' . implode(',', $this->_change_collation) . ')');
+						if (in_array($row['Collation'], $this->_change_collation)) {
+$this->_log(__METHOD__.'() updating column\'s collation');
 							$row['Collation'] = $this->_collation;
 							$null = 'NO' === $row['Null'] ? 'NOT NULL' : 'NULL';
 							$default = !empty($rpw['Default']) ? "DEFAULT '{$row['Default']}" : '';
 
 							$this->_report(sprintf(__('- found column `%1$s` with collation of "%2$s" and ALTERing to "%3$s".', 'dbcollationfix'),
-								$row['Field'], $collation, $this->_collation));
+								$row['Field'], $row['Collation'], $this->_collation));
 							++$column_count;
 
 							// alter the table, changing the column's Collation Algorithm
@@ -182,14 +198,24 @@ $this->_log(__METHOD__.'() alter=' . $sql . ' res=' . var_export($alter_res, TRU
 	 */
 	private function _report($message, $debug = FALSE)
 	{
-		if ($this->_report) {
+//echo $message, PHP_EOL;
+		if ($this->_report || $this->_output) {
 			$out = TRUE;
 			if ($debug && (!defined('WP_DEBUG') || !WP_DEBUG))
 				$out = FALSE;
 
-			if ($out)
-				echo $message, '<br/>';
+			if ($out || $this->_output)
+				echo $message, ($this->_output ? PHP_EOL : '<br/>');
 		}
+	}
+
+	/**
+	 * Sets the output flag, used in reporting
+	 * @param boolean $output TRUE to perform output; FALSE for no output
+	 */
+	public function set_output($output)
+	{
+		$this->_output = $output;
 	}
 
 	/**
@@ -211,7 +237,7 @@ $this->_log(__METHOD__.'() alter=' . $sql . ' res=' . var_export($alter_res, TRU
 	{
 		echo '<div class="wrap">';
 		echo '<h2>', __('ServerPress Database Collation Fix tool', 'dbcollationfix'), '</h2>';
-		echo '<p>', __('This tool is used to convert your site\'s database tables from using the utf8mb4_unicode_520_ci Collation Algorithm to use a slightly older, but more compatible utf8mb4_unicode_ci Collation Algorithm.', 'dbcollationfix'), '</p>';
+		echo '<p>', __('This tool is used to convert your site\'s database tables from using the ...unicode_520_ci Collation Algorithms to use a slightly older, but more compatible utf8mb4_unicode_ci Collation Algorithm.', 'dbcollationfix'), '</p>';
 		echo '<p>', __('The tool will automatically run every 24 hours and change any newly created database table. Or, you can use the button below to perform the database alterations on demand.', 'dbcollationfix'), '</p>';
 		echo '<a class="button-primary" href="', esc_url(add_query_arg('run', '1')), '">', __('Fix Database Collation', 'dbcollationfix'), '</a>';
 
@@ -229,7 +255,7 @@ $this->_log(__METHOD__.'() alter=' . $sql . ' res=' . var_export($alter_res, TRU
 	{
 		$action = $site_name = '';
 		global $ds_runtime;
-		if (isset($ds_runtime)) {
+		if ( isset( $ds_runtime ) ) {
 			if ( FALSE !== $ds_runtime->last_ui_event ) {
 				$action = $ds_runtime->last_ui_event->action;
 
@@ -242,7 +268,7 @@ $this->_log(__METHOD__.'() alter=' . $sql . ' res=' . var_export($alter_res, TRU
 			}
 		}
 
-		$this->_log($method . '() on action "' . $action . '" for site name "' . $site_name . '"');
+		$this->_log( $method . '() on action "' . $action . '" for site name "' . $site_name . '"' );
 	}
 
 	/**
