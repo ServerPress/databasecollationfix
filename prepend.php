@@ -8,20 +8,22 @@ if (!defined('DB_COLLATE'))
  * Process on Create, copy, import, and move events.
  */
 global $ds_runtime;
-uc_debug('last event: ' . var_export($ds_runtime->last_ui_event, TRUE));
+//dbcollfix_debug('last event: ' . var_export($ds_runtime->last_ui_event, TRUE));
 
 if ( FALSE !== $ds_runtime->last_ui_event ) {
 	$events = array('site_created', 'site_copied', 'site_imported', 'site_moved', 'site_exported', 'site_deployed');
 	if ( in_array( $ds_runtime->last_ui_event->action, $events ) ) {
-uc_debug('triggering update...');
-		$ds_runtime->add_action('init', array('UpdateCollation', 'cron_run'));
+//dbcollfix_debug('triggering update...');
+		$ds_runtime->add_action('init', array('DS_DatabaseCollationFix', 'cron_run'));
 		$file = dirname(__FILE__) . '/trigger.txt';
 		fopen($file, 'w+');
 	}
 }
 
-function uc_debug($msg)
+/**
+function dbcollfix_debug($msg)
 {
 	if (function_exists('trace'))
 		trace($msg);
 }
+*/
