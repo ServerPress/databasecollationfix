@@ -1,0 +1,16 @@
+{
+    "name": "serverpress/databasecollationfix",
+    "description": "Fixes the collation settings on databases table to be more backward compatible to older MySQL versions.",
+    "type": "wordpress-plugin",
+    "license": "GPL",
+    "authors":[
+        {
+            "name": "Dave Jesch",
+            "email": "d.jesch@serverpress.com",
+            "homepage": "https://github.com/serverpress"
+        }
+    ],
+    "require": {
+        "composer/installers": "~1.0"
+    }
+}
