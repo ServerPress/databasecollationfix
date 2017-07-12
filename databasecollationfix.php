@@ -3,7 +3,7 @@
 Plugin Name: Database Collation Fix
 Plugin URL: https://serverpress.com/plugins/databasecollationfix
 Description: Convert tables using utf8mb4_unicode_520_ci or utf8_unicode_520_ci collation to standard collation on a cron interval, plus on DesktopServer Create, Copy, Move, Import and Export operations.
-Version: 1.2.1
+Version: 1.2.2
 Author: Dave Jesch
 Author URI: http://serverpress.com
 Text Domain: dbcollationfix
@@ -85,6 +85,9 @@ $this->_log(__METHOD__.'() trigger file found');
 	 */
 	private function _update_schedule($interval = NULL)
 	{
+		if ( defined( 'WP_INSTALLING' ) && WP_INSTALLING )
+			return;				// do nothing if WP is trying to install
+
 		$time_start = strtotime('yesterday');
 		if (NULL === $time_start)
 			$interval = DAY_IN_SECONDS;
