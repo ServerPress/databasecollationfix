@@ -3,12 +3,12 @@
 Plugin Name: Database Collation Fix
 Plugin URL: https://serverpress.com/plugins/databasecollationfix
 Description: Convert tables using utf8mb4_unicode_520_ci or utf8_unicode_520_ci collation to standard collation on a cron interval, plus on DesktopServer Create, Copy, Move, Import and Export operations.
-Version: 1.2.3
+Version: 1.2.4
 Author: Dave Jesch
 Author URI: http://serverpress.com
 Text Domain: dbcollationfix
 Domain path: /language
- */
+*/
 
 class DS_DatabaseCollationFix
 {
@@ -115,10 +115,32 @@ $this->_log(__METHOD__.'() trigger file found');
 $this->_log_action(__METHOD__);
 		global $wpdb;
 
+		$force = FALSE;
+		if ('POST' === $_SERVER['REQUEST_METHOD']) {
+			if (isset($_POST['force-collation']) && '1' === $_POST['force-collation']) {
+				$force = TRUE;
+				$force_algorithm = 'utf8mb4_unicode_ci';
+				if (isset($_POST['force-collation-algorithm']))
+					$force_algorithm = $_POST['force-collation-algorithm'];
+				$this->_collation = $force_algorithm;
+			}
+		}
+
 		$this->_report = $report;
 		$table_count = $column_count = 0;
-		if ($report)
+		if ($report) {
 			echo '<div style="width:100%; margin-top:15px">';
+			if ($force) {
+				echo '<p>', sprintf(__('Forcing Collation Algorithm to: <b>%s</b>.', 'dbcollationfix'),
+					$force_algorithm), '</p>';
+			}
+		}
+
+		$this->_report(sprintf(__('Changing database Collation Algorithm to: %s', 'dbcollationfix'),
+			($force ? $force_algorithm : $this->_collation)));
+		$sql = 'ALTER DATABASE `' . DB_NAME . '` COLLATE=' . ($force ? $force_algorithm : $this->_collation);
+		$res = $wpdb->query($sql);
+$this->_report($sql, TRUE);
 
 		// search for this collation method
 		$collation = 'utf8mb4_unicode_520_ci';
@@ -136,24 +158,40 @@ $this->_log(__METHOD__.'() checking table ' . $table);
 				$create_table_res = $wpdb->get_row($sql, ARRAY_A);
 $this->_log(__METHOD__.'() res=' . var_export($create_table_res, TRUE));
 				$create_table = $create_table_res['Create Table'];
+//$this->_report('create table=' . $create_table);
+
+				// determine current collation value
+				$old_coll = '';
+				$pos = strpos($create_table, ' COLLATE=');
+				if (FALSE !== $pos) {
+					$old_coll = substr($create_table, $pos + 9);
+					$pos = strpos($old_coll, ' ');
+					if (FALSE !== $pos)
+						$old_coll = substr($old_coll, 0, $pos);
+//$this->_report('current table collation="' . $old_coll . "'");
+				}
+//$this->_report('- current collation: ' . $old_coll);
+
+//				if (!empty($old_coll) && $old_coll !== $force_algorithm && !in_array($old_coll, $this->_change_collation)) {
+//					$this->_change_collation[] = $old_coll;
+//$this->_report('++ adding collation algorithm to change list: ' . implode(', ', $this->_change_collation));
+//				}
 
 				// check table collation and modify if it's an undesired algorithm
 				$mod = FALSE;
-				foreach ($this->_change_collation as $coll) {
-					$collation_term =" COLLATE={$coll}";
+				if (in_array($old_coll, $this->_change_collation) ||
+					($force && $old_coll !== $force_algorithm)) {
 $this->_log(__METHOD__.'() checking collation: ' . $collation_term);
-					if (FALSE !== stripos($create_table, $collation_term)) {
-						$this->_report(sprintf(__('- found "%1$s" and ALTERing to "%2$s"...', 'dbcollationfix'),
-							$collation_term, $this->_collation));
-						++$table_count;
+					$new_coll = $force ? $force_algorithm : $this->_collation;
+					$this->_report(sprintf(__('- found "%1$s" and ALTERing to "%2$s"...', 'dbcollationfix'),
+						$old_coll, $new_coll));
+					++$table_count;
 
-						$sql = "ALTER TABLE `{$table}` COLLATE={$this->_collation}";
+					$sql = "ALTER TABLE `{$table}` COLLATE={$new_coll}";
 $this->_report($sql, TRUE);
-						$alter = $wpdb->query($sql);
+					$alter = $wpdb->query($sql);
 $this->_log(__METHOD__.'() sql=' . $sql . ' res=' . var_export($alter, TRUE));
-						$mod = TRUE;
-						break;
-					}
+					$mod = TRUE;
 				}
 				if (!$mod) {
 					$this->_report(__('- no ALTERations required.', 'dbcollationfix'));
@@ -164,21 +202,27 @@ $this->_log(__METHOD__.'() sql=' . $sql . ' res=' . var_export($alter, TRUE));
 				$columns_res = $wpdb->get_results($sql, ARRAY_A);
 				if (NULL !== $columns_res) {
 					foreach ($columns_res as $row) {
-						// if the column is using an undesired Collation Algorithm
 $this->_log(__METHOD__.'() checking collation of `' . $row['Collation'] . '`: (' . implode(',', $this->_change_collation) . ')');
-						if (in_array($row['Collation'], $this->_change_collation)) {
+						// if it's not a text/char field skip it
+						if (FALSE === stripos($row['Type'], 'text') &&
+							FALSE === stripos($row['Type'], 'char')) {
+							continue;
+						}
+						// if the column is using an undesired Collation Algorithm
+						if (in_array($row['Collation'], $this->_change_collation) ||
+							($force && $row['Collation'] !== $this->_collation)) {
 $this->_log(__METHOD__.'() updating column\'s collation');
-							$row['Collation'] = $this->_collation;
 							$null = 'NO' === $row['Null'] ? 'NOT NULL' : 'NULL';
 							$default = !empty($rpw['Default']) ? "DEFAULT '{$row['Default']}" : '';
 
 							$this->_report(sprintf(__('- found column `%1$s` with collation of "%2$s" and ALTERing to "%3$s".', 'dbcollationfix'),
 								$row['Field'], $row['Collation'], $this->_collation));
+//							$row['Collation'] = $this->_collation;
 							++$column_count;
 
 							// alter the table, changing the column's Collation Algorithm
 							$sql = "ALTER TABLE `{$table}`
-								CHANGE `{$row['Field']}` `{$row['Field']}` {$row['Type']} COLLATE {$row['Collation']} {$null} {$default}";
+								CHANGE `{$row['Field']}` `{$row['Field']}` {$row['Type']} COLLATE {$this->_collation} {$null} {$default}";
 $this->_report($sql, TRUE);
 							$alter_res = $wpdb->query($sql);
 $this->_log(__METHOD__.'() alter=' . $sql . ' res=' . var_export($alter_res, TRUE));
@@ -242,10 +286,27 @@ $this->_log(__METHOD__.'() alter=' . $sql . ' res=' . var_export($alter_res, TRU
 		echo '<h2>', __('ServerPress Database Collation Fix tool', 'dbcollationfix'), '</h2>';
 		echo '<p>', __('This tool is used to convert your site\'s database tables from using the ...unicode_520_ci Collation Algorithms to use a slightly older, but more compatible utf8mb4_unicode_ci Collation Algorithm.', 'dbcollationfix'), '</p>';
 		echo '<p>', __('The tool will automatically run every 24 hours and change any newly created database table. Or, you can use the button below to perform the database alterations on demand.', 'dbcollationfix'), '</p>';
-		echo '<a class="button-primary" href="', esc_url(add_query_arg('run', '1')), '">', __('Fix Database Collation', 'dbcollationfix'), '</a>';
 
-		if (isset($_GET['run']) && '1' === $_GET['run'])
+		echo '<form action="', esc_url(add_query_arg('run', '1')), '" method="post">';
+		echo '<p>';
+		echo '<input type="hidden" name="force-collation" value="0" />';
+		echo '<input type="checkbox" name="force-collation" value="1" />';
+		echo '&nbsp;', __('Force Collation Algorithm to: ', 'dbcollationfix');
+
+		echo '<select name="force-collation-algorithm">';
+		echo '<option value="utf8mb4_unicode_ci">utf8mb4_unicode_ci</option>';
+		echo '<option value="utf8mb4_general_ci">utf8mb4_general_ci</option>';
+		echo '<option value="utf8_unicode_ci">utf8_unicode_ci</option>';
+		echo '<option value="utf8_general_ci">utf8_general_ci</option>';
+		echo '</select>';
+		echo '</p>';
+
+		echo '<input type="submit" name="collation-fix" class="button-primary" value="', __('Fix Database Collation', 'dbcollationfix'), '" />';
+		echo '</form>';
+
+		if (isset($_POST['collation-fix']) && '1' === $_GET['run']) {
 			$this->modify_collation(TRUE);		// perform collation changes, with reporting
+		}
 
 		echo '</div>';
 	}
