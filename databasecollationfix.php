@@ -202,10 +202,12 @@ $this->_log(__METHOD__.'() sql=' . $sql . ' res=' . var_export($alter, TRUE));
 				$columns_res = $wpdb->get_results($sql, ARRAY_A);
 				if (NULL !== $columns_res) {
 					foreach ($columns_res as $row) {
-$this->_log(__METHOD__.'() checking collation of `' . $row['Collation'] . '`: (' . implode(',', $this->_change_collation) . ')');
+$this->_log(__METHOD__.'() checking collation of column `' . $row['Field'] . '`: `' . $row['Collation'] . '`: (' . implode(',', $this->_change_collation) . ')');
 						// if it's not a text/char field skip it
+						// include column type of 'enum' when checking collation algorithms #7
 						if (FALSE === stripos($row['Type'], 'text') &&
-							FALSE === stripos($row['Type'], 'char')) {
+							FALSE === stripos($row['Type'], 'char') &&
+							FALSE === stripos($row['Type'], 'enum')) {
 							continue;
 						}
 						// if the column is using an undesired Collation Algorithm
