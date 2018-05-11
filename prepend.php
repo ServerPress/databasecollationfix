@@ -1,5 +1,9 @@
 <?php
 
+// if running in cli mode, exit now and avoid doing anything
+if ( 'cli' === PHP_SAPI )
+	return;
+
 // do a few defines for the WP environment
 if (!defined('DB_COLLATE'))
 	define('DB_COLLATE', 'utf8mb4_unicode_ci');
