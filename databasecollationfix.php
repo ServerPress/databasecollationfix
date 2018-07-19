@@ -3,7 +3,7 @@
 Plugin Name: Database Collation Fix
 Plugin URL: https://serverpress.com/plugins/databasecollationfix
 Description: Convert tables using utf8mb4_unicode_520_ci or utf8_unicode_520_ci collation to standard collation on a cron interval, plus on DesktopServer Create, Copy, Move, Import and Export operations.
-Version: 1.2.5
+Version: 1.2.6
 Author: Dave Jesch
 Author URI: http://serverpress.com
 Text Domain: dbcollationfix
@@ -127,7 +127,7 @@ $this->_log_action(__METHOD__);
 		}
 
 		$this->_report = $report;
-		$table_count = $column_count = 0;
+		$table_count = $column_count = $index_count = 0;
 		if ($report) {
 			echo '<div style="width:100%; margin-top:15px">';
 			if ($force) {
@@ -152,6 +152,9 @@ $this->_report($sql, TRUE);
 		if (NULL !== $res) {
 			foreach ($res as $table) {
 $this->_log(__METHOD__.'() checking table ' . $table);
+				// create a list of any indexes that need to be recreated after column alterations
+				$indexes = array();
+
 				$this->_report(sprintf(__('Checking table "%s"...', 'dbcollationfix'), $table));
 				// check how the table was created
 				$sql = "SHOW CREATE TABLE `{$table}`";
@@ -159,6 +162,36 @@ $this->_log(__METHOD__.'() checking table ' . $table);
 $this->_log(__METHOD__.'() res=' . var_export($create_table_res, TRUE));
 				$create_table = $create_table_res['Create Table'];
 //$this->_report('create table=' . $create_table);
+
+				// drop any FULLTEXT indexes #8
+				// ALTER TABLE `tablename` DROP INDEX `idxname`
+				$offset = 0;
+$this->_report('create table: ' . var_export($create_table, TRUE));
+				while ($offset < strlen($create_table)) {
+					$pos = stripos($create_table, 'FULLTEXT KEY', $offset);
+$this->_report('searching FULLTEXT INDEX: ' . var_export($pos, TRUE));
+					if (FALSE === $pos)
+						break;
+
+					// found a fulltext index
+					$idx_name = substr($create_table, $pos + 14);
+					$end_quote = strpos($idx_name, '`');
+					$idx_name = substr($idx_name, 0, $end_quote);
+					$col_names = substr($create_table, $pos + 15 + strlen($idx_name) + 1);
+					$close_paren = strpos($col_names, ')');
+					$col_names = substr($col_names, 0, $close_paren + 1);
+
+					// move offset pointer to end of FULLTEXT INDEX so we can look for any remaining indexes
+					$offset += $pos + 13 + strlen($idx_name) + strlen($col_names);
+$this->_report('found index [' . $idx_name . '] of [' . $col_names . ']');
+					$sql = "CREATE FULLTEXT INDEX `{$idx_name}` ON `{$table}` {$col_names}";
+//$this->_report("creating index update: {$sql}");
+					$indexes[] = $sql;					// add to list of indexes to recreate after column alterations
+					++$index_count;
+					$sql = "ALTER TABLE `{$table}` DROP INDEX `{$idx_name}`";
+$this->_report('removing index: ' . $sql);
+					$wpdb->query($sql);
+				}
 
 				// determine current collation value
 				$old_coll = '';
@@ -197,13 +230,14 @@ $this->_log(__METHOD__.'() sql=' . $sql . ' res=' . var_export($alter, TRUE));
 					$this->_report(__('- no ALTERations required.', 'dbcollationfix'));
 				}
 
-				// check collumn collation and modify if it's an undesired algorithm
+				// check column collation and modify if it's an undesired algorithm
 				$sql = "SHOW FULL COLUMNS FROM `{$table}`";
 				$columns_res = $wpdb->get_results($sql, ARRAY_A);
 				if (NULL !== $columns_res) {
 					foreach ($columns_res as $row) {
 $this->_log(__METHOD__.'() checking collation of column `' . $row['Field'] . '`: `' . $row['Collation'] . '`: (' . implode(',', $this->_change_collation) . ')');
 						// if it's not a text/char field skip it
+//$this->_report('row type for ' . var_export($row, TRUE) . ' is: ' . $row['Type']);
 						// include column type of 'enum' when checking collation algorithms #7
 						if (FALSE === stripos($row['Type'], 'text') &&
 							FALSE === stripos($row['Type'], 'char') &&
@@ -231,11 +265,18 @@ $this->_log(__METHOD__.'() alter=' . $sql . ' res=' . var_export($alter_res, TRU
 						}
 					}
 				}
+
+				// replace any FULLTEXT indexes that were dropped #8
+				// CREATE FULLTEXT INDEX `idxname` ON `tablename` (col1, col2)
+				foreach ($indexes as $idx) {
+$this->_report('adding back the index: ' . $idx);
+					$wpdb->query($idx);
+				}
 			}
 		}
 
-		$this->_report(sprintf(__('Altered %1$d tables and %2$d columns.', 'dbcollationfix'),
-			$table_count, $column_count));
+		$this->_report(sprintf(__('Altered %1$d tables, %2$d columns and %3$d indexes.', 'dbcollationfix'),
+			$table_count, $column_count, $index_count));
 		if ($report)
 			echo '</div>';
 	}
