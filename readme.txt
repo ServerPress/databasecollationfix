@@ -59,11 +59,23 @@ or, you can upload the files directly to your server.
 1. Plugin page.
 
 == Changelog ==
+= 1.2.6 - Aug 2, 2018 =
+Add handling for FULLTEXT indexes.
+
+= 1.2.5 - May 11, 2018 =
+Add handling for 'enum' column type when looking for things to update.
+
+= 1.2.4 - Jul 26, 2017 =
+Add feature to allow user to select collation algorithm for on demand updates.
+
+= 1.2.2 - Jul 12 2017 =
+Fix error display by not scheduling cron during WP install.
+
 = 1.2 - Feb 24, 2017 =
 Initial release to WordPress repository.
 
 = 1.1 - Dec 13, 2016 =
-* check for non-empty DB_COLLATION specification
+* check for non-empty DB_COLLATION specification.
 
 = 1.0 - Oct 14, 2016 =
 * Initial Release
