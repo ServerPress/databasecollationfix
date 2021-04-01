@@ -1,18 +1,27 @@
 === Database Collation Fix ===
 Contributors: serverpress, spectromtech, davejesch, Steveorevo
-Donate link: http://serverpress.com
+Donate link: https://serverpress.com
 Tags: database, migration, collation algorithm, utf8mb4_unicode_520_ci, desktopserver, export, import, moving data, staging
 Requires at least: 4.6
-Tested up to: 4.7.3
+Requires PHP: 5.3.1
+Tested up to: 5.7
 Stable tag: trunk
 License: GPLv2 or later
-License URI: http://www.gnu.org/licenses/gpl-2.0.html
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 Convert tables using utf8mb4_unicode_520_ci or utf8_unicode_520_ci collation to a more portable Collation Algorithm.
 
 == Description ==
 
-Since version 4.2, WordPress has been detecting the MySQL version and if it's version 5.5.3 or greater, automatically selecting the 'utf8mb4_unicode_520_ci' Collation Algorithm. This works well until you need to migrate your database to an older version of MySQL that does not support the utf8mb4 algorithms. Then, you run into the error message: "#1273 – Unknown collation: 'utf8mb4_unicode_520_ci'" when importing your database.
+Since version 4.2, WordPress has been detecting the MySQL version and if it's version 5.5.3 or greater,
+automatically selecting the 'utf8mb4_unicode_520_ci' Collation Algorithm. This works well until you need
+to migrate your database to an older version of MySQL that does not support the utf8mb4 algorithms. Then,
+you run into the error message: "#1273 - Unknown collation: 'utf8mb4_unicode_520_ci'" when importing your database.
+
+With the WordPress 5.7 update and WooCommerce 5.1, some users are reporting an error: "SQLSTATE[HY000]: General
+error: 1267 Illegal mix of collations (utf8mb4_unicode_520_ci,IMPLICIT) and (utf8mb4_unicode_ci,IMPLICIT)". The
+Database Collation Fix tool also fixes this issue by changing the collation of all columns in your database to
+use the same algorithm, removing the "mix" of collations.
 
 <strong>Usage Scenarios:</strong>
 
@@ -24,11 +33,11 @@ Alternatively, you can install this as a regular WordPress plugin on any site. O
 
 The <em>Database Collation Fix</em> tool converts database tables using 'utf8mb4_unicode_520_ci' or 'utf8_unicode_520_ci' Collation Algorithms to a more portable 'utf8mb4_unicode_ci' collation on a once daily basis. It also modifies any column-specific collation statements, not just the default table collation. This means that you can install this plugin and it will continue to monitor all of your database tables and convert them to the more portable Collation Algorithm automatically.
 
-This tool will convert your database tables and columns to use the 'utf8mb4_unicode_ci' collation algorithm. This can be modified to any other collation algorithm you wish by updating your `wp-config.php` file and adding or changing the following setting:
+This tool will convert your database tables and columns to use the 'utf8mb4_unicode_ci' Collation Algorithm. This can be modified to any other Collation Algorithm you wish by updating your `wp-config.php` file and adding or changing the following setting:
 
 >`define('DB_COLLATE', 'utf8_general_ci');`
 
-You can use 'utf8_general_ci' or 'utf8' or any other supported collation algorithm. See <a href="https://dev.mysql.com/doc/refman/5.7/en/charset-mysql.html">https://dev.mysql.com/doc/refman/5.7/en/charset-mysql.html</a> for a full description of MySQL's Character Set and Collation Algorithm selections.
+You can use 'utf8_general_ci' or 'utf8' or any other Collation Algorithm supported by your database. See <a href="https://dev.mysql.com/doc/refman/5.7/en/charset-mysql.html">https://dev.mysql.com/doc/refman/5.7/en/charset-mysql.html</a> for a full description of MySQL's Character Set and Collation Algorithm selections.
 
 <strong>Support:</strong>
 
@@ -54,6 +63,27 @@ or, you can upload the files directly to your server.
 1. Upload all of the files in `databasecollationfix.zip` to your  `/wp-content/plugins/databasecollationfix` directory.
 2. Activate the plugin through the 'Plugins' menu in WordPress.
 
+== Frequently Asked Questions ==
+
+= Is this safe? =
+
+Yes. The Database Collation Fix tool does not change any data. It only changes the Collation
+Algorithm that specified for your database columns and indexes.
+
+= Do I need to backup my data before using this? =
+
+Yes. Always backup your site before making database changes. The Database Collation Fix tool
+is unlikely to cause any problems but there is still a small chance that something else (like
+the version of MySQL/MariaDB that you're using) can have a compatibility issue.
+
+= Once my tables are fixed, do I still need to use this tool? =
+
+No. The Database Collation Fix tool changes the database. It only needs to do this once. However,
+future versions of WordPress or one or more of your plugins can also make database changes. These
+future changes may require updates to keep your Collation Algorithms updated. If you leave the
+Database Collation Fix tool active, it will scan your database once per day and look for any tables
+that need to be adjusted, fixing them automatically.
+
 == Screenshots ==
 
 1. Plugin page.
@@ -66,7 +96,7 @@ Add handling for FULLTEXT indexes.
 Add handling for 'enum' column type when looking for things to update.
 
 = 1.2.4 - Jul 26, 2017 =
-Add feature to allow user to select collation algorithm for on demand updates.
+Add feature to allow user to select Collation Algorithm for on demand updates.
 
 = 1.2.2 - Jul 12 2017 =
 Fix error display by not scheduling cron during WP install.

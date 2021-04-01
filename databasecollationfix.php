@@ -3,7 +3,7 @@
 Plugin Name: Database Collation Fix
 Plugin URL: https://serverpress.com/plugins/databasecollationfix
 Description: Convert tables using utf8mb4_unicode_520_ci or utf8_unicode_520_ci collation to standard collation on a cron interval, plus on DesktopServer Create, Copy, Move, Import and Export operations.
-Version: 1.2.6
+Version: 1.2.7
 Author: Dave Jesch
 Author URI: http://serverpress.com
 Text Domain: dbcollationfix
@@ -116,7 +116,7 @@ $this->_log_action(__METHOD__);
 		global $wpdb;
 
 		$force = FALSE;
-		if ('POST' === $_SERVER['REQUEST_METHOD']) {
+		if (isset($_SERVER['REQUEST_METHOD']) && 'POST' === $_SERVER['REQUEST_METHOD']) {
 			if (isset($_POST['force-collation']) && '1' === $_POST['force-collation']) {
 				$force = TRUE;
 				$force_algorithm = 'utf8mb4_unicode_ci';
