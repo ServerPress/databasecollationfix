@@ -1,7 +1,7 @@
 <?php
 /**
 Plugin Name: Database Collation Fix
-Plugin URL: https://serverpress.com/plugins/databasecollationfix
+Plugin URI: https://serverpress.com/plugins/databasecollationfix
 Description: Convert tables using utf8mb4_unicode_520_ci or utf8_unicode_520_ci collation to standard collation on a cron interval, plus on DesktopServer Create, Copy, Move, Import and Export operations.
 Version: 1.2.7
 Author: Dave Jesch
