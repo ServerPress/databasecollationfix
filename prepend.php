@@ -14,14 +14,21 @@ if (!defined('DB_COLLATE'))
 global $ds_runtime;
 //dbcollfix_debug('last event: ' . var_export($ds_runtime->last_ui_event, TRUE));
 
-if ( FALSE !== $ds_runtime->last_ui_event ) {
-	$events = array('site_created', 'site_copied', 'site_imported', 'site_moved', 'site_exported', 'site_deployed');
-	if ( in_array( $ds_runtime->last_ui_event->action, $events ) ) {
-//dbcollfix_debug('triggering update...');
-		$ds_runtime->add_action('init', array('DS_DatabaseCollationFix', 'cron_run'));
-		$file = dirname(__FILE__) . '/trigger.txt';
-		fopen($file, 'w+');
+if (property_exists($ds_runtime, 'last_ui_event')) {
+	if ( FALSE !== $ds_runtime->last_ui_event ) {
+		$events = array('site_created', 'site_copied', 'site_imported', 'site_moved', 'site_exported', 'site_deployed');
+		if ( in_array( $ds_runtime->last_ui_event->action, $events ) ) {
+			//dbcollfix_debug('triggering update...');
+			$ds_runtime->add_action('init', array('DS_DatabaseCollationFix', 'cron_run'));
+			$file = dirname(__FILE__) . '/trigger.txt';
+			fopen($file, 'w+');
+		}
 	}
+}else{
+	$ds_runtime->add_action('ds_workflow_create_done', array('DS_DatabaseCollationFix', 'cron_run'));
+	$ds_runtime->add_action('ds_workflow_copy_done', array('DS_DatabaseCollationFix', 'cron_run'));
+	$ds_runtime->add_action('ds_workflow_import_done', array('DS_DatabaseCollationFix', 'cron_run'));
+	$ds_runtime->add_action('ds_workflow_move_done', array('DS_DatabaseCollationFix', 'cron_run'));
 }
 
 /**
